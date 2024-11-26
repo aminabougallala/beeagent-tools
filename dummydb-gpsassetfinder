@@ -1,0 +1,37 @@
+from geopy.distance import geodesic
+from typing import List, Dict, Tuple
+
+def find_nearby_assets(current_location: Tuple[float, float], radius_km: float = 50) -> List[Dict[str, any]]:
+    """
+    Finds nearby assets within a specified radius based on the current GPS location.
+    
+    Parameters:
+    - current_location (Tuple[float, float]): The GPS coordinates (latitude, longitude) of the current location.
+    - radius_km (float): The radius in kilometers within which to search for nearby assets. Default is 50 km.
+    
+    Returns:
+    - List[Dict[str, any]]: A list of dictionaries containing details of assets within the specified radius.
+      Each dictionary includes the asset ID, description, and distance from the current location.
+    """
+    
+    # Dummy database of assets with GPS coordinates
+    assets_db = [
+        {"id": "A100", "location": (37.7749, -122.4194), "details": "Compressor unit - Model X"},
+        {"id": "A101", "location": (34.0522, -118.2437), "details": "Pressure gauge - Model Y"},
+        {"id": "A102", "location": (40.7128, -74.0060), "details": "Pump - Model Z"},
+    ]
+    
+    nearby_assets = []  # List to store assets found within the specified radius
+    
+    # Calculate the distance from the current location to each asset
+    for asset in assets_db:
+        distance = geodesic(current_location, asset["location"]).kilometers
+        if distance <= radius_km:
+            # Add asset details if it is within the specified radius
+            nearby_assets.append({
+                "id": asset["id"],
+                "details": asset["details"],
+                "distance_km": round(distance, 2)
+            })
+    
+    return nearby_assets

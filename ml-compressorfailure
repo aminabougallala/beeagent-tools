@@ -1,0 +1,136 @@
+import json
+import requests
+
+def predict_failure(input_data: str) -> dict:
+    """
+    This function predicts the likelihood of a compressor part failure based on input parameters. 
+
+    Args:
+        body (str): A JSON string containing input values for the model, with keys:
+            - "Type" (str): Type of the compressor.
+            - "Air_Temperature_K" (float): Air temperature in Kelvin.
+            - "Process_Temperature_K" (float): Process temperature in Kelvin.
+            - "Rotational_Speed_RPM" (int): Rotational speed in RPM.
+            - "Torque_Nm" (float): Torque in Newton-meters.
+            - "Sound_Level" (float): Sound level in decibels.
+            - "Operational_Hours" (int): Number of operational hours.
+
+    Returns:
+        dict: A dictionary containing the prediction message and failure status.
+    
+    """
+    
+    # Step 1: Evaluate input format and convert to double-encoded JSON
+    if isinstance(input_data, dict):
+        # If input is already a dictionary, double-encode it
+        outer_body = {"body": json.dumps(input_data)}
+        body = json.dumps(outer_body)
+    else:
+        # Try to parse the input as JSON string
+        try:
+            parsed_data = json.loads(input_data)
+            if isinstance(parsed_data, dict):
+                outer_body = {"body": json.dumps(parsed_data)}
+                body = json.dumps(outer_body)
+            else:
+                # If it's a plain string or other format, embed it directly
+                outer_body = {"body": json.dumps({"message": input_data})}
+                body = json.dumps(outer_body)
+        except json.JSONDecodeError:
+            # If parsing fails, assume it's a plain string and embed it
+            outer_body = {"body": json.dumps({"message": input_data})}
+            body = json.dumps(outer_body)
+    
+    # Step 2: Parse the outer JSON
+    try:
+        outer_dict = json.loads(body)
+    except json.JSONDecodeError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": f"Invalid JSON format in outer structure: {str(e)}"})
+        }
+
+    # Step 3: Parse the inner JSON within 'body'
+    try:
+        body_dict = json.loads(outer_dict['body'])
+    except json.JSONDecodeError as e:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": f"Invalid JSON format in inner 'body' field: {str(e)}"})
+        }
+    
+    # Step 4: Retrieve the IAM token
+    try:
+        token_response = requests.post(
+            'https://iam.cloud.ibm.com/identity/token',
+            data={
+                "apikey": "_LF5rApUaMyvJmO_LUFYI_TDfP1GcWAiSFPUQ9evd9l0",
+                "grant_type": 'urn:ibm:params:oauth:grant-type:apikey'
+            }
+        )
+        token_response.raise_for_status()
+        mltoken = token_response.json()["access_token"]
+    except requests.exceptions.RequestException as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to get token: {str(e)}"})
+        }
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {mltoken}'
+    }
+
+    # Step 5: Prepare the payload for scoring
+    payload_scoring = {
+        "input_data": [
+            {
+                "fields": [
+                    "Type", "Air Temperature [K]", "Process Temperature [K]",
+                    "Rotational speed [rpm]", "Torque [Nm]", "Sound Level", "Operational Hours"
+                ],
+                "values": [
+                    [
+                        body_dict.get('Type'), 
+                        body_dict.get('Air_Temperature_K'), 
+                        body_dict.get('Process_Temperature_K'),
+                        body_dict.get('Rotational_Speed_RPM'), 
+                        body_dict.get('Torque_Nm'), 
+                        body_dict.get('Sound_Level'), 
+                        body_dict.get('Operational_Hours')
+                    ]
+                ]
+            }
+        ]
+    }
+
+    # Step 6: Make the scoring request
+    try:
+        response_scoring = requests.post(
+            'https://us-south.ml.cloud.ibm.com/ml/v4/deployments/94485b6d-6ea3-4119-a4d4-6e9917863e52/predictions?version=2021-05-01',
+            json=payload_scoring,
+            headers=headers
+        )
+        response_scoring.raise_for_status()
+        scoring_response = response_scoring.json()
+    except requests.exceptions.RequestException as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to get scoring response: {str(e)}"})
+        }
+    
+    # Step 7: Parse the scoring response
+    result = scoring_response['predictions'][0]
+    result_keys = result.get('fields', [])
+    result_vals = result.get('values', [[]])[0]
+    result_dict = dict(zip(result_keys, result_vals))
+
+    failure_probability = result_dict.get("probability", [0])[1] * 100
+    prediction = result_dict.get("prediction", "Unknown")
+
+    final_message = f'This pipeline is presenting a {prediction} with a risk probability of: {100 - failure_probability:.0f}%'
+    response_body = {
+        "message": final_message,
+        "failure": prediction
+    }
+    return response_body

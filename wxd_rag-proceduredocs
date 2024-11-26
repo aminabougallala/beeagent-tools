@@ -1,0 +1,34 @@
+import json
+from typing import List, Dict, Any
+from ibm_watson import DiscoveryV2
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+
+def query_watson_discovery(user_query: str) -> List[Dict[str, Any]]:
+    """
+    Query IBM Watson Discovery based on a user's input query about procedures for part failures and return the documentation to help answer the question.
+
+    Args:
+    user_query (str): The search query provided by the user to execute in Watson Discovery.
+
+    Returns:
+    List[Dict[str, Any]]: A list of dictionaries, each representing a search result.
+    """
+    # Embedded credentials and instance details
+    api_key = 'nHbjzq0Z2QpFU0g3z4QQ6A5yn0XQzbNfNx0Q2zq-xkhk'
+    url = 'https://api.us-south.discovery.watson.cloud.ibm.com/instances/27c563bb-a7c0-4eb5-8aae-57eb65ce568d'
+    project_id = '13dda682-3685-405e-9448-e21ca49aba4a'
+
+    # Authenticator setup
+    authenticator = IAMAuthenticator(api_key)
+    discovery = DiscoveryV2(version='2020-08-30', authenticator=authenticator)
+    discovery.set_service_url(url)
+
+    # Perform the query with the user's input
+    response = discovery.query(project_id=project_id, query=user_query).get_result()
+
+    # Extract and return information
+    results = response.get('results', [])
+    if results:
+        return [{'title': result.get('title', 'No title available'), 'text': result.get('text', 'No detailed text available')} for result in results]
+    else:
+        return []

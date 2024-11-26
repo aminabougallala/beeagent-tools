@@ -1,0 +1,42 @@
+def check_spare_part_availability(part_id: str) -> str:
+    """
+    Checks the availability of a spare part in various warehouse locations.
+
+    Args:
+        part_id (str): The ID of the part to check for availability.
+
+    Returns:
+        list of dict or str: A list of dictionaries containing locations and quantities
+        where the part is available if it is in stock. Each dictionary has keys:
+        - "location" (str): The warehouse location of the part.
+        - "quantity" (int): The available quantity of the part at that location.
+        
+        If the part is out of stock at all locations, returns a string message indicating
+        that the part is unavailable.
+
+    Example:
+        >>> check_spare_part_availability("P123")
+        [{'location': 'Warehouse A', 'quantity': 5}]
+        
+        >>> check_spare_part_availability("P124")
+        'Part ID P124 is out of stock in all locations.'
+    """
+    # Dummy inventory database
+    inventory_db = [
+        {"part_id": "P123", "location": "Warehouse A", "quantity": 5},
+        {"part_id": "P124", "location": "Warehouse B", "quantity": 0},
+        {"part_id": "P125", "location": "Warehouse C", "quantity": 3},
+    ]
+    
+    available_locations = []
+    for entry in inventory_db:
+        if entry["part_id"] == part_id and entry["quantity"] > 0:
+            available_locations.append({
+                "location": entry["location"],
+                "quantity": entry["quantity"]
+            })
+            
+    if not available_locations:
+        return f"Part ID {part_id} is out of stock in all locations."
+    
+    return available_locations
